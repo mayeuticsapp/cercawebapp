@@ -71,7 +71,7 @@ function extractBusinessesFromMapsHtml(html: string): Business[] {
     }
   }
 
-  const linkMatches = [...html.matchAll(/href="([^"]+)"[^>]*aria-label="Sito[^"]*"/gi)];
+  const linkMatches = Array.from(html.matchAll(/href="([^"]+)"[^>]*aria-label="Sito[^"]*"/gi));
   linkMatches.forEach((m, i) => {
     if (businesses[i]) {
       businesses[i].website = m[1];
@@ -107,7 +107,7 @@ function extractEmailsFromHtml(html: string): string[] {
     /^direzione@/i,
   ];
 
-  const filteredEmails = [...new Set(emails)].filter((email) => {
+  const filteredEmails = Array.from(new Set(emails)).filter((email) => {
     return !excludePatterns.some((pattern) => pattern.test(email));
   });
 
@@ -219,7 +219,7 @@ function extractBusinessesFallback(html: string, city: string, category: string)
   const names = new Set<string>();
   
   for (const pattern of patterns) {
-    const matches = html.matchAll(pattern);
+    const matches = Array.from(html.matchAll(pattern));
     for (const match of matches) {
       const name = match[1].trim();
       if (
@@ -235,12 +235,12 @@ function extractBusinessesFallback(html: string, city: string, category: string)
   }
   
   const urlPattern = /https?:\/\/(?:www\.)?([a-zA-Z0-9-]+\.[a-zA-Z]{2,})/g;
-  const urls = [...html.matchAll(urlPattern)]
+  const urls = Array.from(html.matchAll(urlPattern))
     .map((m) => m[0])
     .filter((url) => !url.includes("google") && !url.includes("gstatic"));
   
   let i = 0;
-  for (const name of [...names].slice(0, 20)) {
+  for (const name of Array.from(names).slice(0, 20)) {
     businesses.push({
       name,
       website: urls[i] || null,

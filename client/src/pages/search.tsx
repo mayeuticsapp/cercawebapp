@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Search as SearchIcon, MapPin, Store, Loader2, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -7,9 +7,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { useApp } from "@/lib/store";
-import { MOCK_LEADS } from "@/lib/mock-data";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "wouter";
+import { apiRequest } from "@/lib/queryClient";
 
 type SearchForm = {
   city: string;
@@ -28,34 +28,50 @@ export default function SearchPage() {
   const onSubmit = async (data: SearchForm) => {
     setIsSearching(true);
     setProgress(0);
-    setStatusMessage("Inizializzazione Apify Google Maps Scraper...");
+    setStatusMessage("Inizializzazione Zyte Web Scraper...");
 
-    // Simulazione flusso di ricerca
-    const steps = [
-      { p: 20, msg: `Ricerca "${data.category}" a ${data.city} su Google Maps...` },
-      { p: 45, msg: "Trovate 15 attività. Estrazione dettagli..." },
-      { p: 60, msg: "Analisi siti web in corso (Crawler)..." },
-      { p: 80, msg: "Estrazione email e validazione..." },
-      { p: 100, msg: "Completato!" }
-    ];
-
-    for (let i = 0; i < steps.length; i++) {
-      await new Promise(r => setTimeout(r, 1500));
-      setProgress(steps[i].p);
-      setStatusMessage(steps[i].msg);
+    try {
+      setProgress(10);
+      setStatusMessage(`Ricerca "${data.category}" a ${data.city} su Google Maps...`);
+      
+      const response = await apiRequest("POST", "/api/search", {
+        city: data.city,
+        category: data.category,
+      });
+      
+      setProgress(90);
+      setStatusMessage("Elaborazione risultati...");
+      
+      const result = await response.json();
+      
+      if (result.leads && result.leads.length > 0) {
+        addLeads(result.leads);
+        setProgress(100);
+        setStatusMessage("Completato!");
+        
+        toast({
+          title: "Ricerca Completata",
+          description: `Trovati ${result.count} nuovi contatti potenziali.`,
+        });
+        
+        setTimeout(() => setLocation("/contacts"), 1000);
+      } else {
+        toast({
+          title: "Nessun Risultato",
+          description: "Nessuna attività trovata per questa ricerca.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Errore ricerca:", error);
+      toast({
+        title: "Errore",
+        description: error instanceof Error ? error.message : "Errore durante la ricerca",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSearching(false);
     }
-
-    // Aggiungi mock leads
-    addLeads(MOCK_LEADS);
-    
-    setIsSearching(false);
-    toast({
-      title: "Ricerca Completata",
-      description: `Trovati ${MOCK_LEADS.length} nuovi contatti potenziali.`,
-    });
-    
-    // Redirect opzionale o visualizzazione risultati
-    setTimeout(() => setLocation("/contacts"), 1000);
   };
 
   return (
@@ -143,7 +159,7 @@ export default function SearchPage() {
             <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 text-sm text-slate-600 font-mono">
               <p className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                Connessione API Apify stabilita...
+                Connessione API Zyte stabilita...
               </p>
               {progress > 20 && (
                 <p className="flex items-center gap-2 mt-2">
