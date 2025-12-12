@@ -1,14 +1,15 @@
-modules = ["nodejs-20", "web", "postgresql-16"]
+modules = ["nodejs-20", "web"]
 run = "npm run dev"
 hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
 
 [nix]
-channel = "stable-24_05"
+channel = "stable-25_05"
 
 [deployment]
-deploymentTarget = "static"
+deploymentTarget = "autoscale"
 build = ["npm", "run", "build"]
 publicDir = "dist/public"
+run = ["npm", "run", "start"]
 
 [[ports]]
 localPort = 5000
@@ -35,8 +36,14 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "npm run dev:client"
+args = "npm run dev"
 waitForPort = 5000
 
 [agent]
-mockupState = "MOCKUP"
+mockupState = "FULLSTACK"
+
+[userenv]
+
+[userenv.shared]
+VITE_SUPABASE_URL = "https://ulsfdtgdmwrupogdjjeu.supabase.co"
+VITE_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVsc2ZkdGdkbXdydXBvZ2RqamV1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU1NTcwMzAsImV4cCI6MjA4MTEzMzAzMH0.6gg3oZvksurkxKLifKtgUBv518AlEerrYNwFNGSDurU"

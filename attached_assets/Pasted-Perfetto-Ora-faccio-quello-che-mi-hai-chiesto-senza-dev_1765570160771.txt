@@ -1,0 +1,264 @@
+Perfetto.
+Ora faccio **quello che mi hai chiesto**, senza deviazioni:
+**un documento di istruzioni completo, chiaro e operativo** da incollare **così com’è** ad **agent3 su Replit**.
+
+Non è una chiacchiera: è un **brief tecnico-esecutivo**.
+
+---
+
+# 📘 ISTRUZIONI PER AGENT3 (REPLIT)
+
+## Progetto: **LeadFlow – App di Raccolta Email B2B Locali**
+
+### 🎯 OBIETTIVO
+
+Costruire una **web app con interfaccia semplice** che permetta a un utente non tecnico di:
+
+1. Cercare attività commerciali (es. ristoranti) per **città + categoria**
+2. Estrarre **email reali** dai loro siti web
+3. Gestire una **lista contatti**
+4. Inviare email tramite **Mailjet**
+5. Fare tutto **da un’unica interfaccia**, senza usare direttamente Apify o Mailjet
+
+---
+
+## 🧠 CONCETTO CHIAVE
+
+L’app **non fa scraping diretto**:
+👉 usa **API ufficiali** (Apify + Mailjet)
+
+L’app è un **orchestratore**:
+
+* UI semplice
+* backend che chiama servizi esterni
+* stato chiaro (progress, errori, risultati)
+
+---
+
+## 🧱 ARCHITETTURA
+
+### Frontend
+
+* **React + Vite** (oppure Next.js se preferisci)
+* UI minimal (shadcn/ui o MUI)
+* 3 schermate principali
+
+### Backend
+
+* **Node.js (Express o Fastify)**
+* API REST
+* Gestione job asincroni
+
+### Servizi esterni
+
+* **Apify API**
+* **Mailjet API**
+* Database leggero (SQLite / Supabase / JSON locale per MVP)
+
+---
+
+## 🔐 VARIABILI D’AMBIENTE (OBBLIGATORIE)
+
+```
+APIFY_API_TOKEN=
+MAILJET_API_KEY=
+MAILJET_API_SECRET=
+```
+
+---
+
+## 🖥️ STRUTTURA UI (OBBLIGATORIA)
+
+### 1️⃣ Schermata – Raccolta Lead
+
+Campi input:
+
+* Città (string)
+* Categoria (string, es: ristorante / pizzeria / bar)
+* Bottone: **“Avvia ricerca”**
+
+UI feedback:
+
+* Stato:
+
+  * “Cerco attività su Google Maps…”
+  * “Analizzo siti web…”
+  * “Email trovate: X”
+
+---
+
+### 2️⃣ Schermata – Lista Contatti
+
+Tabella con colonne:
+
+* Nome attività
+* Sito web
+* Email trovata
+* Fonte (sito / facebook / contatti)
+* Checkbox (seleziona / escludi)
+
+Funzioni:
+
+* Rimuovi duplicati
+* Esporta CSV
+* Seleziona per invio
+
+---
+
+### 3️⃣ Schermata – Invio Email
+
+Campi:
+
+* Email mittente (es: [newsletter@nonsolomenu.app](mailto:newsletter@nonsolomenu.app))
+* Oggetto
+* Corpo email (HTML o testo)
+* Bottone: **Invia test**
+* Bottone: **Invia campagna**
+
+---
+
+## ⚙️ FLUSSO TECNICO (PASSO PER PASSO)
+
+### STEP 1 – Raccolta attività
+
+Usare **Apify – Google Maps Scraper**
+
+Input:
+
+* query: `"ristoranti ${città}"`
+* country: IT
+* max results configurabile
+
+Output richiesto:
+
+* nome attività
+* sito web (se presente)
+* telefono
+* indirizzo
+
+---
+
+### STEP 2 – Estrazione email
+
+Per ogni sito web trovato:
+
+Usare **Apify – Website Content Crawler**
+
+* visita homepage + /contatti + /contact
+* regex per email:
+
+  ```
+  [a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-z]{2,}
+  ```
+
+Filtri:
+
+* escludere:
+
+  * noreply@
+  * no-reply@
+  * example@
+* preferire:
+
+  * info@
+  * contatti@
+  * booking@
+  * amministrazione@
+
+---
+
+### STEP 3 – Normalizzazione dati
+
+Ogni contatto deve avere **minimo**:
+
+* email
+* nome attività (come “Nome”)
+* cognome = “Titolare” (fallback)
+
+⚠️ NON inventare date di nascita reali
+Usare campi minimi per compatibilità Mailjet
+
+---
+
+### STEP 4 – Gestione lista
+
+Salvare i contatti in DB locale con:
+
+* status: new / selected / sent
+* fonte
+* timestamp
+
+---
+
+### STEP 5 – Invio email (Mailjet)
+
+Usare Mailjet API per:
+
+* creare lista
+* importare contatti
+* inviare email
+
+Supportare:
+
+* invio test (1 email)
+* invio batch
+
+---
+
+## ⚠️ VINCOLI IMPORTANTI
+
+* ❌ NON fare scraping diretto senza Apify
+* ❌ NON inventare email
+* ❌ NON inviare email senza consenso visibile (footer + unsubscribe)
+* ✅ Gestire errori API (timeout, quota, nessun sito)
+
+---
+
+## 📁 STRUTTURA PROGETTO (SUGGERITA)
+
+```
+/frontend
+  /pages
+  /components
+/backend
+  /routes
+  /services
+    apify.js
+    mailjet.js
+  /jobs
+  server.js
+```
+
+---
+
+## 🚀 OBIETTIVO MVP
+
+L’MVP è **completo** se:
+
+* inserisco “Roma + Ristoranti”
+* ottengo una lista email reali
+* invio una mail di test
+* tutto senza uscire dall’app
+
+---
+
+## 🧭 NOTA FINALE PER AGENT3
+
+Questa app **non è un esercizio**.
+È un **prodotto reale**, pensato per:
+
+* PMI
+* agenzie
+* progetti come Pantheon Business
+
+Scrivi codice **pulito**, leggibile, modulare.
+Privilegia **funzionamento e chiarezza** rispetto all’estetica.
+
+---
+
+Se vuoi, nel prossimo messaggio posso:
+
+* adattare il testo **esattamente** allo stile che agent3 preferisce
+* oppure scrivere **anche i prompt interni** per le singole funzioni (Apify, Mailjet, UI)
+
+Dimmi solo: **procediamo o rifiniamo ancora 5%?**
