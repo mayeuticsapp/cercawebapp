@@ -3,26 +3,6 @@ import { randomUUID } from "crypto";
 const ZYTE_API_KEY = process.env.ZYTE_API_KEY;
 const ZYTE_API_URL = "https://api.zyte.com/v1/extract";
 
-interface Business {
-  name: string;
-  website: string | null;
-  phone: string | null;
-  address: string | null;
-}
-
-interface Lead {
-  id: string;
-  name: string;
-  website: string;
-  phone: string;
-  address: string;
-  email: string | null;
-  source: "website" | "maps" | "facebook" | "manual";
-  status: "new" | "selected" | "sent" | "archived";
-  city: string;
-  category: string;
-}
-
 async function fetchWithZyte(url: string, browserHtml = true): Promise<string> {
   if (!ZYTE_API_KEY) {
     throw new Error("ZYTE_API_KEY non configurata");
@@ -50,37 +30,6 @@ async function fetchWithZyte(url: string, browserHtml = true): Promise<string> {
   return data.browserHtml || Buffer.from(data.httpResponseBody || "", "base64").toString("utf-8");
 }
 
-function extractBusinessesFromMapsHtml(html: string): Business[] {
-  const businesses: Business[] = [];
-  
-  const nameRegex = /<div[^>]*class="[^"]*qBF1Pd[^"]*"[^>]*>([^<]+)<\/div>/gi;
-  const websiteRegex = /href="(https?:\/\/[^"]+)"[^>]*data-value="Website"/gi;
-  const phoneRegex = /(\+39[\s]?[\d\s]{8,15}|\d{2,4}[\s.-]?\d{6,10})/g;
-  
-  const nameMatches = html.match(/<div[^>]*class="[^"]*fontHeadlineSmall[^"]*"[^>]*>([^<]+)<\/div>/gi) || [];
-  
-  for (const match of nameMatches) {
-    const nameClean = match.replace(/<[^>]+>/g, "").trim();
-    if (nameClean && nameClean.length > 2) {
-      businesses.push({
-        name: nameClean,
-        website: null,
-        phone: null,
-        address: null,
-      });
-    }
-  }
-
-  const linkMatches = Array.from(html.matchAll(/href="([^"]+)"[^>]*aria-label="Sito[^"]*"/gi));
-  linkMatches.forEach((m, i) => {
-    if (businesses[i]) {
-      businesses[i].website = m[1];
-    }
-  });
-
-  return businesses;
-}
-
 function extractEmailsFromHtml(html: string): string[] {
   const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-z]{2,}/gi;
   const emails = html.match(emailRegex) || [];
@@ -96,6 +45,16 @@ function extractEmailsFromHtml(html: string): string[] {
     /wixpress/i,
     /sentry/i,
     /cloudflare/i,
+    /google/i,
+    /facebook/i,
+    /twitter/i,
+    /instagram/i,
+    /youtube/i,
+    /schema\.org/i,
+    /w3\.org/i,
+    /placeholder/i,
+    /your-?email/i,
+    /email@/i,
   ];
 
   const preferredPatterns = [
@@ -105,6 +64,9 @@ function extractEmailsFromHtml(html: string): string[] {
     /^prenotazioni@/i,
     /^amministrazione@/i,
     /^direzione@/i,
+    /^contact@/i,
+    /^hello@/i,
+    /^sales@/i,
   ];
 
   const filteredEmails = Array.from(new Set(emails)).filter((email) => {
@@ -122,133 +84,84 @@ function extractEmailsFromHtml(html: string): string[] {
   return filteredEmails;
 }
 
-export async function searchBusinesses(
-  city: string,
-  category: string,
-  onProgress?: (message: string, percent: number) => void
-): Promise<Lead[]> {
-  const leads: Lead[] = [];
-  
-  try {
-    onProgress?.("Ricerca attività su Google Maps...", 10);
-    
-    const searchQuery = encodeURIComponent(`${category} ${city} Italia`);
-    const mapsUrl = `https://www.google.com/maps/search/${searchQuery}`;
-    
-    const mapsHtml = await fetchWithZyte(mapsUrl, true);
-    onProgress?.("Analisi risultati Google Maps...", 30);
-    
-    const businesses = extractBusinessesFromMapsHtml(mapsHtml);
-    
-    if (businesses.length === 0) {
-      const fallbackBusinesses = extractBusinessesFallback(mapsHtml, city, category);
-      businesses.push(...fallbackBusinesses);
-    }
-    
-    onProgress?.(`Trovate ${businesses.length} attività. Estrazione email...`, 50);
-    
-    let processed = 0;
-    for (const business of businesses.slice(0, 15)) {
-      processed++;
-      const percent = 50 + Math.floor((processed / Math.min(businesses.length, 15)) * 40);
-      
-      let email: string | null = null;
-      
-      if (business.website) {
-        try {
-          onProgress?.(`Analisi sito: ${business.name}...`, percent);
-          const siteHtml = await fetchWithZyte(business.website, true);
-          const emails = extractEmailsFromHtml(siteHtml);
-          if (emails.length > 0) {
-            email = emails[0];
-          }
-          
-          if (!email) {
-            const contactUrls = ["/contatti", "/contact", "/contacts", "/chi-siamo"];
-            for (const path of contactUrls) {
-              try {
-                const contactUrl = new URL(path, business.website).href;
-                const contactHtml = await fetchWithZyte(contactUrl, false);
-                const contactEmails = extractEmailsFromHtml(contactHtml);
-                if (contactEmails.length > 0) {
-                  email = contactEmails[0];
-                  break;
-                }
-              } catch {
-              }
-            }
-          }
-        } catch (err) {
-          console.error(`Errore scraping ${business.website}:`, err);
-        }
-      }
-
-      leads.push({
-        id: randomUUID(),
-        name: business.name,
-        website: business.website || "",
-        phone: business.phone || "",
-        address: business.address || "",
-        email,
-        source: business.website ? "website" : "maps",
-        status: "new",
-        city,
-        category,
-      });
-    }
-    
-    onProgress?.("Completato!", 100);
-    
-  } catch (error) {
-    console.error("Errore nella ricerca:", error);
-    throw error;
+function normalizeUrl(url: string): string {
+  let normalized = url.trim();
+  if (!normalized.startsWith('http://') && !normalized.startsWith('https://')) {
+    normalized = 'https://' + normalized;
   }
-  
-  return leads;
+  try {
+    const urlObj = new URL(normalized);
+    return urlObj.href;
+  } catch {
+    return normalized;
+  }
 }
 
-function extractBusinessesFallback(html: string, city: string, category: string): Business[] {
-  const businesses: Business[] = [];
+export interface ExtractEmailResult {
+  url: string;
+  email: string | null;
+  error?: string;
+}
+
+export async function extractEmailFromWebsite(websiteUrl: string): Promise<ExtractEmailResult> {
+  const url = normalizeUrl(websiteUrl);
   
-  const patterns = [
-    /"title":"([^"]+)"/g,
-    /aria-label="([^"]+)"/g,
-    /<h3[^>]*>([^<]+)<\/h3>/gi,
-  ];
-  
-  const names = new Set<string>();
-  
-  for (const pattern of patterns) {
-    const matches = Array.from(html.matchAll(pattern));
-    for (const match of matches) {
-      const name = match[1].trim();
-      if (
-        name.length > 3 &&
-        name.length < 100 &&
-        !name.includes("Google") &&
-        !name.includes("Maps") &&
-        !name.includes("Cerca")
-      ) {
-        names.add(name);
+  try {
+    console.log(`[Zyte] Analisi homepage: ${url}`);
+    const html = await fetchWithZyte(url, true);
+    let emails = extractEmailsFromHtml(html);
+    
+    if (emails.length > 0) {
+      console.log(`[Zyte] Email trovata su homepage: ${emails[0]}`);
+      return { url, email: emails[0] };
+    }
+    
+    const contactPaths = ['/contatti', '/contact', '/contacts', '/chi-siamo', '/about', '/about-us', '/contattaci'];
+    
+    for (const path of contactPaths) {
+      try {
+        const contactUrl = new URL(path, url).href;
+        console.log(`[Zyte] Provo pagina contatti: ${contactUrl}`);
+        const contactHtml = await fetchWithZyte(contactUrl, false);
+        emails = extractEmailsFromHtml(contactHtml);
+        
+        if (emails.length > 0) {
+          console.log(`[Zyte] Email trovata su ${path}: ${emails[0]}`);
+          return { url, email: emails[0] };
+        }
+      } catch (err) {
+        // Pagina non trovata, continua
       }
+    }
+    
+    console.log(`[Zyte] Nessuna email trovata per: ${url}`);
+    return { url, email: null };
+    
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Errore sconosciuto";
+    console.error(`[Zyte] Errore per ${url}:`, errorMessage);
+    return { url, email: null, error: errorMessage };
+  }
+}
+
+export async function extractEmailsFromWebsites(
+  websites: { id: string; url: string }[],
+  onProgress?: (current: number, total: number, url: string) => void
+): Promise<Map<string, ExtractEmailResult>> {
+  const results = new Map<string, ExtractEmailResult>();
+  
+  for (let i = 0; i < websites.length; i++) {
+    const { id, url } = websites[i];
+    onProgress?.(i + 1, websites.length, url);
+    
+    const result = await extractEmailFromWebsite(url);
+    results.set(id, result);
+    
+    // Piccola pausa per non sovraccaricare l'API
+    if (i < websites.length - 1) {
+      await new Promise(resolve => setTimeout(resolve, 500));
     }
   }
   
-  const urlPattern = /https?:\/\/(?:www\.)?([a-zA-Z0-9-]+\.[a-zA-Z]{2,})/g;
-  const urls = Array.from(html.matchAll(urlPattern))
-    .map((m) => m[0])
-    .filter((url) => !url.includes("google") && !url.includes("gstatic"));
-  
-  let i = 0;
-  for (const name of Array.from(names).slice(0, 20)) {
-    businesses.push({
-      name,
-      website: urls[i] || null,
-      phone: null,
-      address: `${city}, Italia`,
-    });
-    i++;
-  }
-  
-  return businesses;
+  return results;
 }

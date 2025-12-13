@@ -19,6 +19,7 @@ export type LeadDB = {
   city: string;
   category: string;
   email: string | null;
+  email_status: 'pending' | 'extracting' | 'found' | 'not_found' | 'error';
   source: 'website' | 'facebook' | 'maps' | 'manual';
   status: 'new' | 'selected' | 'sent' | 'archived';
 };
